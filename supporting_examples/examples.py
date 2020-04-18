@@ -69,10 +69,7 @@ def draw_world_of_mary(graph=None,
         DG, edge_labels = world_of_mary()
     else:
         DG = graph
-    if pos==None:
-        pos = nx.spring_layout(DG)
-    else:
-        pos=pos
+    pos = nx.circular_layout(DG) if pos=='c' else nx.kamada_kawai_layout(DG)
     fig = plt.figure(figsize=fig_size)
     if title != None:
         fig.suptitle(title)
