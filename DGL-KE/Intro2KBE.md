@@ -38,7 +38,7 @@ There is several relationships in this scenario that are not explicitly mentione
 There are also some interesting negative conclusions that seems intuitive to us but not to the machine:
 - Potato *does not like* Mary.
 - Canada *is not from* Joe.
-- Canada *is not located** in Quebec.
+- Canada *is not located* in Quebec.
 - ...
 What we examined is a knowledge graph, a set of nodes with different types of relations:
 - 1-to-1: Mary is a sibling of Tom.
@@ -64,11 +64,11 @@ Knowledge graph embedding is the task of completing the knowledge graphs by prob
 The connectivity or relational pattern are commonly observed in KG. A Knowledge Graph Embedding model intends to predicts missing connections that are often one of the below types.
 
 - ***symmetric***
- - **Definision:** A relation $r$ is ***symmetric** if $\forall {x,y}: (x,r,y)\implies (y,r,x)$
+ - **Definision:** A relation $r$ is ***symmetric*** if $\forall {x,y}: (x,r,y)\implies (y,r,x)$
  - **Example:** $\text{x=Mary and y=Tom and r="is a sibling of"}; (x,r,y) = \text{Mary is a sibling of Tom} \implies (y,r,x)=\text{Tom is a sibling of Mary}$ 
 
 - ***antisymmetric***
- - **Definision:** A relation r is ***antisymmetric** if $\forall {x,y}: (x,r,y)\implies \lnot (y,r,x)$
+ - **Definision:** A relation r is ***antisymmetric*** if $\forall {x,y}: (x,r,y)\implies \lnot (y,r,x)$
  - **Example:** $\text{x=Quebec and y=Canada and r="is located in"}; (x,r,y) = \text{Quebec is located in Canada} \implies (y,\lnot r,x)=\text{Canada is not located in Quebec}$ 
 - ***inversion***
  - **Definition:** A relation $r_1$ is ***inverse*** to relation $r_2$ if $\forall x,y: r_2(x,y)\implies r_1(y,x)$.
@@ -90,7 +90,7 @@ There are different flavours of KGE that have been developed over the course of 
 Knowledge graphs that are beyond toy examples are always large, high dimensional, and sparse. High dimensionality and sparsity are the results of the amount of information that the KG holds that can be represented with 1-hot or n-hot vectors. The fact that most of the items have no relationship withe one another is another major contributor to sparsity of KG representations. We, therefore desire to project the sparse and high dimensional graph representational vector space onto a lower dimensional dense space. This process is similar to to word embedding and dimensionality reduction used for [recommender systems baesd on matrix factorization models.](https://www.slideshare.net/apachemxnet/building-content-recommendation-systems-using-mxnet-gluon)
 I will provide a detailed account of all the methods in a different post, but here I will provide a short explanation of how projections differ in each paper, what the score functions do, and what consequences the choices have on on relationship inference and computational complexity.
 
-### TransE:
+# TransE:
 TransE is a representative translational distance model that represents entities and relations as vectors in the same semantic space of dimension $\mathbb{R^d}$, where $d$ is the dimension of the target space with reduced dimension. A fact in the source space is represented as a triplet $(h, r, t)$ where $h$ is short for *head*, $r$ is for *relation*, and $t$ is for *tail*. The relationship is interpreted as a translation vector so that the embedded entities are connected by relation $r$ have a short distance. [3, 4]
 In terms of vector computation it could mean adding a head to a relation should approximate to the relation's tail, or $h+r \approx t$. For example if $h_1=emb("Ottawa"),\ h_2=emb("Berlin"), t_1=emb("Canada"), t_2=("Germany")$, and finally $r="CapilatOf"$, then $h_1 + r$ and $h_2+r$ should approximate $t_1$ and $t_2$ respectively.
 TransE performs linear transformation and the scoring function is negative distance between $h+r$ and $t$, or $f=-\|h+r-t\|_{\frac{1}{2}}$
@@ -99,7 +99,7 @@ TransE performs linear transformation and the scoring function is negative dista
     <figcaption>Figure 3: TransE</figcaption>
 </figure>
 
-### TransR
+# TransR
 TransE cannot cover relationship that are not 1-to-1 as it learns only one aspect of similarity. TransR addresses this issue with separating relationship space from entity space where $h, t \in \mathbb{R}^k$ and $r \in \mathbb{R}^d$. The semantic spaces do not need to be of the same dimension. In the multi-relationship modeling we learn a projection matrix $M\in \mathbb{R}^{k \times d}$ for each relationship that can project an entity to different relationship semantic spaces. Each of these spaces capture a different aspect of an entity that is related to a distinct relationship. In this case a head node $h$ and a tail node $t$ in relation to relationship $r$ is projected into the relationship space using the learned projection matrix $M_r$ as $h_r=hM_r$ and $t_r=tM_r$ respectively.Figure 5 illustrates this projection.
 
 Let us explore this using an example. Mary and Tom are siblings and colleagues. They both are vegetarians. Joe also works for Amazon and is a colleague of Mary and Tom. TransE might end up learning very similar embedding for Mary, Tom, and Joe from the fact that they are colleagues but fail to recognize the (not)sibling relationship.
@@ -147,7 +147,7 @@ $$
 where A is an $n\times r$ matrix of latent-component representation of entities and asymmetrical $r\times r$ square matrix $R_k$ that models interaction for $k_th$ predicate component in $\mathcal{X}$.
 To make sense of it all, let's take a look at an example:
 
-$
+$S
 Entities=\{\text{Mary :}0, \text{Tom :}1, \text{Joe :}2\} \\
 Relationships=\{\text{sibling, colleague}\} \\
 Relation_{k=0}^{sibling}: \text{Mary and Tom are siblings but Joe is not their sibling.} \\
@@ -170,7 +170,7 @@ Joe  & Mary  & Tom
 1 & 0 & 1\\
 1 & 1 & 0
 \end{bmatrix}
-$
+$$
 
 Note that even in such a small knowledge graph where two of the three entities have even a symmetrical relationship, matrix $\mathcal{X}_k$ is sparse and asymmetrical. Obviously colleague relationship in this example is not representative of a real world problem. Even though such relationships can be created they contain no information as probability of occurring is hight. For instance if we are creating a knowledge graph for for registered members of a website is a specific country, we do not model relations like "is countryman of" as it contains little information and has very low entropy.   
 
@@ -276,6 +276,10 @@ V_2 = \begin{bmatrix}
 $
 
 $\mathbb{R} \subset \mathbb{C}$ and $\mathbb{R}^n \subset \mathbb{C}^n$. Basically a real number is a complex number whose imaginary part gas a coefficient of zero.
+
+**modulus of a complex number**
+$z$ is a complex number as is given by $z=a+bi$, modulus $z$ is analogous to size in vector space and is given by $\mid z\mid = \sqrt{a^2 + b^2}$
+
 **Complex Conjugate**
 The conjugate of complex number $z=a+bi$ is denoted by $\bar{z}$ and is given by $\bar{z}=a-bi$.
 
@@ -381,7 +385,7 @@ We are not done yet. Do you remember in RESCAL the number of parameters was $O(d
 We have already seen the solution in the complex vector space section. The paper does construct the decomposition in a normal space, a vector space composed of complex normal vectors.
 
 ## The Score Function 
-A relation between two entities can be modeled as a sign function, meaning that if there is a relation between subject and object, then the outcome is 1, otherwise it is 0. More formally, $Y_{so}\in \{-1, 1\}$. the probability of of a relation to exist then is given by sigmoid function: $P(Y_{so}=1) = \sigma(\X_(so))$. 
+A relation between two entities can be modeled as a sign function, meaning that if there is a relation between subject and object, then the outcome is 1, otherwise it is 0. More formally, $Y_{so}\in \{-1, 1\}$. the probability of of a relation to exist then is given by sigmoid function: $P(Y_{so}=1) = \sigma(X_{so})$. 
 
 This probability score requires $X$ to be real, while $EWE^*$ includes both real and imaginary components. We can simply project the decomposition to the real space so that $X =Re(EWE^*)$. the score function of ComlEx, therefore is given by:
 $$
@@ -389,44 +393,108 @@ f_r(h, t) = Re(h^\top diag(r) \bar{t}) = Re(\sum_{i=0}^{d-1}[r]_i.[h]_i.[\bar{t}
 $$
 and since there are no nested loops, the number of parameters is linear and is given by $O(d)$.
 
+# RotateE
+Let us reexamine translational distance models with on of the latest publications in relational embedding models, RotateE. Inspired by TransE, RotateE veers into complex vector space and motivated by Euler's identity, defines relations as rotation from head to tail.
 
-```python
+## Euler's Formula
+$e^x$ can be computed using the infinite series below:
+$$
+e^x = 1 + \frac{x}{1!} +\frac{x^2}{2!} + \frac{x^3}{3!} + \frac{x^4}{4!}+ \frac{x^5}{5!} + \frac{x^6}{6!} + \frac{x^7}{7!} + \frac{x^8}{8!} + \dots
+$$
+replacing $x$ with $ix$ entails:
 
-```
+$$
+e^{(ix)} = 1 + \frac{ix}{1!} - \frac{x^2}{2!} - \frac{ix^3}{3!} + \frac{x^2}{4!} + \frac{ix^5}{5!} - \frac{x^6}{6!} - \frac{ix^7}{3!} + \frac{x^8}{8!} + \dots\\
+$$
+
+Computing $i$ to a sequence of powers and replacing the values in $e^{ix} $ the the results in: 
+$$
+i^2=-1,\ i^3=i^2i=-i,\ i^4=ii^3=-1^2=1,\ i^5=i^4i=i,\ i^6=i^5i=i^2=-1,\ i^7=i^6i=-i,\ i^8=i^7i=-i^2=1,\ \dots\\
+e^{(ix)} = 1 + \frac{ix}{1!} +\frac{i^2x^2}{2!} + \frac{i^3x^3}{3!} + \frac{i^4x^4}{4!} + \frac{i^5x^5}{5!} + \frac{i^6x^6}{6!} + \frac{i^7x^7}{3!} + \frac{i^8x^8}{8!} + \dots\\
+$$
+
+rearranging the series and factoring $i$ in terms that include it:
+
+$$
+1 - \frac{x^2}{2!} + \frac{x^4}{4!} - \frac{x^6}{6!} + \frac{x^8}{8!} +i\left(\frac{x}{1!} - \frac{x^3}{3!} + \frac{x^5}{5!} -  \frac{x^7}{7!}  \right)\text{ (1)}\\
+$$
+
+$sin$ and $cosin$ representation as series are given by:
+$$
+sin(x) = \frac{x}{1!} - \frac{x^3}{3!} + \frac{x^5}{5!} -  \frac{x^7}{7!} + \dots\\
+cos(x) = 1 - \frac{x^2}{2!} + \frac{x^4}{4!} - \frac{x^6}{6!} + \frac{x^8}{8!} + \dots\\
+$$
+
+Finally replacing terms in equation (1) with $sin$ and $cosin$, we have:
+$$
+\large e^{i\theta} = cos(\theta) + isin(\theta)\ (2)
+$$
+
+Equation 2 is called Euler's formula and has interesting consequences in a way that we can represent complex numbers as rotation on the unit circle.
+
+## Modeling Relations as Rotation
+Given a triplet $(h,r,t), t = h \circ r$, where $h$, $r$, and $t \in \mathbb{C}^k$ are the embeddings. modulus $\mid r_i\mid=1$(as we are in the unit circle thanks to Euler's formula), and $\circ$ is the element-wise product. We, therefore, for each dimension expect to have: 
+$$
+t_i=h_ir_i,\text{ where } h_i, r_i, t_i \in \mathbb{C}, and \mid r_i\mid=1.
+$$
+Restricting $\mid r_i\mid = 1\ r_i$ will be of form $e^{i\theta_{r,i}}$. Intuitively $r_i$ corresponds to a counterclockwise rotation by $\theta_{r,i}$ based on Eurler's formula. 
+
+Under these conditions,:
+- $r$ is symmetric $\iff \forall i \in (0,k]: r_i=e^{\frac{0}{i\pi}}=\pm 1$.
+- $r_1$ and $r_2$ are inverse $\iff r_2=\bar{r}_1$ (embeddings of relations are complex conjugates)
+- $r_3=e^{i\theta_3}$ is a combination of $r_1=e^{i\theta_1}$ and $r_2=e^{i\theta_2} \iff r_3=r_1\circ r_2.\text(i.e)\theta_3=\theta1+\theta2$ or a rotation is a combination of two smaller rotations sum of whose angles is the angle of the third relation. 
+<figure>
+    <img src=img/rotate1.png height=200 width=600>
+    <figcaption>Figure 9: RotateE vs. TransE</figcaption>
+</figure>
+
+## Score Function
+score function of RotateE measures the angular distance between head and tail elements and is defined as: 
+$$
+d_r(h, t)=\|h\circ r-t\|
+$$ 
+
+# Training KE
+## Negative Sampling
+Generally to train a KE, all the models we have investigated apply a variation of negative sampling by corrupting triplets $(h,r,t)$. They corrupt either $h$, or $t$ by by sampling from set of head or tail entities for heads and tails respectively. The corrupted triples can be of wither forms $(h', r, r)$ or $(h, r, t')$, where $h'$ and $t'$ are the negative samples.
+
+## Loss functions
+Most commonly logistic loss and pairwise ranking loss are employed. The logistic loss returns -1 for negative samples and +1 for the positive samples. So if $\mathbb{D}^+$ and $\mathbb{D}^-$ are negative and positive data, $y=\pm 1$ is the label for positive and negative triplets and $f$(figure 2) is the ranking function, then the logistic loss is computed as:
+
+$$
+minimize\ \sum_{(h,r,t)\in \mathbb{D}^+\cup \mathbb{D}^-}log(1+e^{-y\times f(h,r,t)})
+$$
+
+The second commonly use loss function is margin based pairwise ranking loss, which minimizes the rank for positive triplets($(h,r,t)$ does hold). The lower the rank, the higher the probability. Ranking loss is give by:
+$$
+minimize \sum_{(h,r,t)\in \mathbb{D}^+}\sum_{(h,r,t)\in \mathbb{D}^-}max(0, \gamma - f(h,r,t)+f(h',r', t')).
+$$
+
+| Method | Ent. Embedding | Rel. Emebedding | Score Function | Complexity | symm | Anti | Inv | Comp |
+|--------|----------------|-----------------|----------------|------------|------|------|-----|------|
+| TransE | $h,t \in \mathbb{R}^d$ | $r \in \mathbb{R}^d$ | $-\|h+r-t\|$ | $O(d)$ | $-$ | $\checkmark$ | $\checkmark$ | $-$ |
+| TransR | $h,t \in \mathbb{R}^d$ | $r \in \mathbb{R}^k,M_r\in\mathbb{R}^{k\times d}$ | $-\|M_rh+r-M_rt\|_2^2$ | $O(d^2)$ | $-$ | $\checkmark$ | $\checkmark$ | $\checkmark$ |
+| RESCAL | $h,t \in \mathbb{R}^d$ | $M_r\in\mathbb{R}^{d\times d}$ | $h^\top M_rt$ | $O(d^2)$ | $\checkmark$ | $-$ | $\checkmark$ | $\checkmark$ |
+| DistMulti | $h,t \in \mathbb{R}^d$ | $r\in\mathbb{R}^d$ | $h^\top diag(r)t$ | $O(d)$ | $\checkmark$ | $-$ | $-$ | $-$ |
+| ComplEx | $h,t \in \mathbb{C}^d$ | $r\in\mathbb{C}^d$ | $h^\top Re(diag(r)t)$ | $O(d)$ | $\checkmark$ | $\checkmark$ | $\checkmark$ | $-$ |
+| RotateE | $h,t \in \mathbb{C}^d$ | $r\in\mathbb{C}^d$ | $\|h\circ r-t\|$ | $O(d)$ | $\checkmark$ | $\checkmark$ | $\checkmark$ | $\checkmark$ |
+
+# What's Next?
+Now that we have investigated the methods that are implemented in DGL-KE, we shall explore how DGL-KE optimized computation of these methods and distributes them on multiple devices in a new post.
 
 # References
 1.  http://semantic-web-journal.net/system/files/swj1167.pdf
 2.  Zhiqing Sun, Zhi-Hong Deng, Jian-Yun Nie, and Jian Tang. RotatE: Knowledge graph embedding by relational rotation in complex space. CoRR, abs/1902.10197, 2019.
 3. Knowledge Graph Embedding: A Survey of Approaches and Applications Quan Wang, Zhendong Mao, Bin Wang, and Li Guo. DOI 10.1109/TKDE.2017.2754499, IEEE Transactions on Knowledge and Data Engineering
-4. transE
-5.TransR
-6. RESCAL
-7. Survey paper
-8. DistMult
-
-<code>y - (y<sup>2</sup> - k) / 2y</code>
-
-i<sup>2</sup>![image.png](attachment:image.png)
-
-$
-if\ A=[a_{ij}]_{m\times n}=
-\begin{bmatrix}
-a_{11} & a_{12} & \dots  & a_{1n} \\
-a_{21} & a_{22} & \dots  & a_{2n} \\
-\vdots & \vdots & \ddots & \dots  \\
-a_{m1} & a_{m2} & \dots  & a_{mn} \\
-\end{bmatrix}_{m\times n} \text{ and } 
-B=[b_{ij}]_{n\times k}=
-\begin{bmatrix}
-b_{11} & b_{12} & \dots  & b_{1k} \\
-b_{21} & b_{22} & \dots  & b_{2k} \\
-\vdots & \vdots & \ddots & \dots  \\
-b_{n1} & b_{n2} & \dots  & b_{nk} \\
-\end{bmatrix}_{n\times k}\ then\ 
-C=[c_{mk}]_{m\times k}\ such\ that\  c_{mk}=\sum_{p=1}^ka_{mp}b_{pk}
-$
-
-$$f$$
+4. transE: Antoine Bordes, Nicolas Usunier, Alberto Garcia-Duran, JasonWeston, and Oksana
+Yakhnenko. Translating embeddings for modeling multi-relational data. In Advances in Neural Information Processing Systems 26. 2013.
+5.TransR: Yankai Lin, Zhiyuan Liu, Maosong Sun, Yang Liu, and Xuan Zhu. Learning entity and relation embeddings for knowledge graph completion. In Proceedings of the Twenty-Ninth AAAI Conference on Artificial Intelligence, 2015.
+6. RESCAL: Maximilian Nickel, Volker Tresp, and Hans-Peter Kriegel. A three-way model for collective learning on multi-relational data. In Proceedings of the 28th International Conference on International Conference on Machine Learning, ICML’11, 2011.
+7. Survey paper: Q. Wang, Z. Mao, B. Wang and L. Guo, "Knowledge Graph Embedding: A Survey of Approaches and Applications," in IEEE Transactions on Knowledge and Data Engineering, vol. 29, no. 12, pp. 2724-2743, 1 Dec. 2017.
+8. DistMult: Bishan Yang, Scott Wen-tau Yih, Xiaodong He, Jianfeng Gao, and Li Deng. Embedding entities and relations for learning and inference in knowledge bases. In Proceedings of the International Conference on Learning Representations (ICLR)
+2015, May 2015.
+9. ComplEx: Théo Trouillon, Johannes Welbl, Sebastian Riedel, Éric Gaussier, and Guillaume Bouchard. Complex embeddings for simple link prediction. CoRR, abs/1606.06357, 2016.
+10. Zhiqing Sun, Zhi-Hong Deng, Jian-Yun Nie, and Jian Tang. RotatE: Knowledge graph embedding by relational rotation in complex space. CoRR, abs/1902.10197, 2019.
 
 
 ```python
