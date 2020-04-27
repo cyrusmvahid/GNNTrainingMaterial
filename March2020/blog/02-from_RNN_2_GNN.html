@@ -2,7 +2,7 @@
 <html>
 <head><meta charset="utf-8" />
 
-<title>Intro2KBE</title>
+<title>02-from_RNN_2_GNN</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
@@ -13090,8 +13090,27 @@ div#notebook {
 <div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="Introduction-to-Knowledge-Graph-Embedding">Introduction to Knowledge Graph Embedding<a class="anchor-link" href="#Introduction-to-Knowledge-Graph-Embedding">&#182;</a></h1><p>There has been a huge focus both in academia and industry on Graph Neural Networks in the past 3 years. There has been a surge of GNN toolkits and knowledge graph embedding tools in response to both research and practical need. We have created open source library, Deep Graph Library or DGL as a high performance and highly distributed GNN tool. On the top of DGL, we have released a knowledge graph embedding tool called DGL-KE, which outperforms similar products thanks to several innovations in distributed KGE training for link prediction task. In order to be able to choose the right algorithms and parameters, it is however important to understand what the models in the core of DGL-KE do and where they perform best.
-    This blog details out KGE models that are implemented in DGL-KE and is a fundamental to understanding DGL-KE's finctional capabilities.</p>
+<h1 id="Message-Passing-Neural-Networks-(MPNN)">Message Passing Neural Networks (MPNN)<a class="anchor-link" href="#Message-Passing-Neural-Networks-(MPNN)">&#182;</a></h1>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In order to understand MPNN better, let us take a walk back in history and begin with Recurrent Neural Networks or RNN. RNNS were developed in order to conduct sequence modeling. An example of sequence is a 1-D temporal sequence. 
+to get a better feeling about what a 1-D temporal sequence is, let's consider an example? I give a sequence of numbers such as: 0, 1, 1, 2, 3, 5, 8, 13, .... What do you expect the next number in the series is?</p>
+<p>Well, if you are familiar with Fibonacci series, then you can guess that the next number is 13+8 = 22. 
+How is it achieved? we simply sample sequences of different length, find a pattern, and then apply the pattern on the appropriate sequence length and make a prediction.</p>
+<p>Let's  try a different example from NLP: "Recently, the king of Spain abdicated in favour of his son, Felipe. Felipe is now the new ... king". We unfailingly infer that the next word in indeed "Spanish."</p>
+<p>How did we do that? Firstly we used a reference to an earlier part of the sentence. It was after all, the king of <em>Spain</em>, who abdicated. It is not hard to images this as a system that the previous state of the system is being carried forward.</p>
+<p>There is another more hidden complexity, inferring <em>Spain</em> from <em>Spanish</em>. There is a higher dimension relationship, which is related to the inflection. Generally, we seem to be able to infer grammar. I will come back to this point a little later. For now, we are interested in 1-D sequential systems.</p>
+$$s^{(t+1)} = f(s^{(t)}; \theta)\qquad(1)$$<p>where $s$ is representing state of a system at timestep $(t)$. $f$ is a function and $\theta$ is the model parameters.</p>
+<p>We can observe that the systems is always the same, what differs in that the input to the systems is state of the previous run of the system.</p>
+<p>This exhibits a recursiveness, which is inherent in dynamical systems and is captured in equation (1); For instance expanding equation 1 for $t=3$, we have:
+$$s^{(3)}=f(s^{(2)}, \theta)=f(f(s^{(1)}, \theta), \theta)=f(f(s^{(0)}, \theta), \theta), \theta)$$. If initial state of the system is none, then $$s^{(3)}=f(0, \theta), \theta), \theta)$$.</p>
+<p><img src="./images/dynamicalsystem.png" alt="Image 1: Dynamical System" style="width:325px;height:45px;"></p>
+<p>Outside factors could affect a system. If such outside influence at timestep $t$ is $x_t$, then state of a dynamical systems i a function of its previous state, the external factor, and system parameters. Equation 1, is then expanded to include $X=\{x_i\}_{i=0}^{\tau}$</p>
+$$s^{(t+1)} = f(s^{(t)}, x^{(t+1)}; \theta)\qquad(2)$$<p><img src="./images/dynamicalsystemwithinput.png" alt="Image 2: Dynamical System with Outside Influence" style="width:325px;height:97.5px;"></p>
 
 </div>
 </div>
@@ -13099,54 +13118,32 @@ div#notebook {
 <div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="What-is-a--Knowledge-Graph">What is a  Knowledge Graph<a class="anchor-link" href="#What-is-a--Knowledge-Graph">&#182;</a></h1><p>“A knowledge graph (i) mainly describes real world entities and their interrelations, organized
-in a graph, (ii) defines possible classes and relations of entities in a schema, (iii) allows for
-potentially interrelating arbitrary entities with each other and (iv) covers various topical
-domains.” [Paulheim- 1]</p>
-<p>Knowledge Graphs are often modeled as directed multigraphs. As a quick reminder let us define Multigrpah and directed graphs:</p>
-<ul>
-<li>In a directed graph edges are called arcs and they can direct information from their head to their tail but not in the opposite direction.</li>
-<li>A multigraph is a graph that can includes loops as well as multiple relationships between the same nodes.
-for more information on Graphs you can check this <a href="https://github.com/cyrusmvahid/GNNTrainingMaterial/blob/master/March2020/01-gentle_into_2_graphs.ipynb">link</a> </li>
-</ul>
-<p>Let us examine a directed multigraph in an example, which include a cast of characters and the world in which they live.</p>
-<p><strong>scenario:</strong></p>
-<p><strong>Mary</strong> and <strong>Tom</strong> are <strong><em>siblings</em></strong> and they both are <strong><em>are vegetarians</em></strong>, who <strong><em>like</em></strong> <strong>potatoes</strong> and <strong>cheese</strong>. Mary and Tom both <strong><em>work</em></strong> at <strong>Amazon</strong>. <strong>Joe</strong> is a bloke who is a <strong><em>colleague</em></strong> of Tom. To make the matter complicated, Joe <strong><em>loves</em></strong> Mary, but we do not know if the feeling is reciprocated.</p>
-<p>Joe <strong><em>is from</em></strong> <strong>Quebec</strong> and is proud of his native dish of <strong>Poutine</strong>, which is <strong><em>composed</em></strong> of potato, cheese, and <strong>gravy</strong>. We also know that gravy <strong><em>contains</em></strong> <strong>meat</strong> in some form.</p>
-<p>Joe is excited to invite Tom for dinner and and has sneakily included his sibling, Mary, in the invitation. His plans are doomed from get go as he is planning to serve the vegetarian siblings his favourite Quebecois dish, Poutine.</p>
-<p>Oh! by the way, a piece of geography trivia: Quebec <strong><em>is located</em></strong> in a <strong>province</strong> of the same name, which in turn <strong><em>is located</em></strong> in <strong>Canada</strong>.</p>
-<p><strong>end of scenario</strong></p>
-<p>There is several relationships in this scenario that are not explicitly mentioned but we can simply infer from what we are given:</p>
-<ul>
-<li>Mary is a colleague of Tom.</li>
-<li>Tom is a colleague of Mary.</li>
-<li>Mary is Tom's sister.</li>
-<li>Tom is Mary's brother.</li>
-<li>Poutine has meat.</li>
-<li>Poutine is not a vegetarian dish.</li>
-<li>Mary and Tom would not eat Poutine.</li>
-<li>Poutine is a Canadian dish.</li>
-<li>Joe is Canadian.</li>
-<li>Amazon is a workplace for Mary, Tom, and Joe.</li>
-</ul>
-<p>There are also some interesting negative conclusions that seems intuitive to us but not to the machine:</p>
-<ul>
-<li>Potato <em>does not like</em> Mary.</li>
-<li>Canada <em>is not from</em> Joe.</li>
-<li>Canada <em>is not located</em> in Quebec.</li>
-<li>...
-What we examined is a knowledge graph, a set of nodes with different types of relations:</li>
-<li>1-to-1: Mary is a sibling of Tom.</li>
-<li>1-to-N: Amazon is a workplace for Mary, Tom, and Joe.</li>
-<li>N-to-1: Joe, Tom, and Mary work at Amazon.</li>
-<li>N-to-N: Joe, Mary, and Tom are colleagues.</li>
-</ul>
-<p>There are other categorization perspectives on the relationships as well:</p>
-<ul>
-<li>Symmetric: Joe is a colleague of Tom entails Tom is also a colleague of Joe.</li>
-<li>Antisymmetric: Quebec is located in Canada entails that Canada cannot be located in Quebec.</li>
-</ul>
-<p>Figure 1: visualized a knowledgebase that describes <em>World of Mary</em>. For more information on how to use the examples, please refer to the <a href="https://github.com/cyrusmvahid/GNNTrainingMaterial/blob/master/March2020/supportingexamples/examples.py">code</a> that draws the examples.</p>
+<h1 id="Recurrent-Neural-Networks">Recurrent Neural Networks<a class="anchor-link" href="#Recurrent-Neural-Networks">&#182;</a></h1><p>The above dynamical system can be modeled using RNNs. RNNS is their simplest form work on the same principle, where the state of the system is the value of its hidden units and model parameters are weights. in Equation 2 we can simply exchange $s$ with $h$ and we have the fundamental description of an RNN.</p>
+$$h^{(t+1)} = f(h^{(t)}, x^{(t+1)}; \theta)\qquad(3)$$<p><img src="./images/rnnconcept.png" alt="Image 3: Recurrent Neural Networks" style="width:325px;height:97.5px;"></p>
+<p>And unrolling remains the same conceptually.</p>
+<p><img src="./images/unrolling.png" alt="Image 3: Recurrent Neural Networks" style="width:455px;height:97.5px;"></p>
+<h2 id="RNN-characteristics">RNN characteristics<a class="anchor-link" href="#RNN-characteristics">&#182;</a></h2><p>RNNs do have a few interesting characteristics. 1)They produce an output at each timestep, 2)The connection are directional from each timestep to the next, and take and entire sequence and generate a single output.</p>
+<p>As we unroll the graph in time, the computational graph provide us what is akin to a feed forwrd network. We can then use back propagation in time in order to train the network and learn parameters $ \theta $.
+The propagation equations are defined as:</p>
+$$
+a^{(t+1)} = b+Wh^{(t)} + Ux^{(t+1)} \qquad(4); \\ 
+h^{(t+1)} = tanh(a^{(t+1)}) \qquad(5); \\
+o^{(t+1)} = c+Vh^{(t+1)} \qquad(6); \\
+\hat{y}^{(t+1)}=softmax(o^{(t+1)}) \qquad(7);
+$$<p>$a$ $b$, and $c$ are bias vectors. $U$, $V$, and $W$ are weight vectors for input-to-input, hidden-to-output, and hidden-to-hidden connections. $\hat{y}$ is the prediction.</p>
+<p><img src="./images/fullrnnunrolled.png" alt="Image 3: Recurrent Neural Networks" style="width:455px;height:250px;"></p>
+<p>This model can perhaps capture patterns of  1-D sequential systems such as Fibonacci series, however this is not the case for more complicated problems such as NLP. Take the following example, for instance,</p>
+$$
+\textit{Teddy Roosevelt was the president of the United States.} \\
+\textit{Teddy Bears are popular toys for small children.}
+$$<p>In order to understand who or what the word "Teddy" means in the above example, we need a new type of RNN, a type of RNN that not only can pass the state forward, but also backwards.
+Enters bidirectional RNN, which uses a forward pass from left to right and another forward pass from right to left. Training is performed as BPTT (back propagation though time) in both directions.</p>
+<p>I want to take you back the example in which inflections were determined, where we inferred Felipe had become the king of <strong>Spain</strong>. In order to enrich RNN to pick out grammatic and other sorts of relationships, embedding and deep RNNs were introduced.</p>
+<p>After all of such additions we still can only consume and train data that is sequential and each layer has connections to specif layers. For  instance skip layers are used in forecasting. (ref LSTNet paper)</p>
+<p>Most of the rest of the world in not so neatly organized. Relationships are irregular and messy. Tom is a friend of Joe. Joe loves Mary. Mary like apple. Tom is Mary's brother. Tom and Mary are vegetarians. Potato is a vegetable. Tom and Mary, and Joe like melted cheese. Putine is made of gravy, potato, and melted cheese.
+Is it likely that next time Tom visits Mary and Joe they would make some Putine? Well... I hope not. We can see that all three of our protagonists are vegetarians, poutine contains gravy and gravy contains meat.</p>
+<p>This simple body of knowledge describes intricate relationships between the entities it describes, namely Mary, Joe, Tom, potato, cheese, and putine. There are several types of relationships. Love, siblings, containments, and liking.</p>
+<p>There are also assumptions that are not included in the body of knowledge. Does Mary know that Joe loves her? Does she reciprocate Joe's feelings? Are they a couple? Can we infer from similar connections from others, whom are not describes in this body of knowledge, anything about Joe and Mary based on similarities in the mesh of relationships they have with one another?</p>
 
 </div>
 </div>
@@ -13154,9 +13151,10 @@ What we examined is a knowledge graph, a set of nodes with different types of re
 <div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="Modeling-the-knowledge-graph">Modeling the knowledge graph<a class="anchor-link" href="#Modeling-the-knowledge-graph">&#182;</a></h2><p>Let us try to model the world that describes Tom, Marry, Joe, and their preferences and relationships.</p>
 <figure>
-    <img src="img/wom_c.png" height="800" width="800">
-    <figcaption>Figure1: World of Mary </figcaption>
+    <img src="./images/tomnmarry.png" alt="Image 3: Recurrent Neural Networks" style="width:700px;height:700px;" align='topleft'>
+    <figcaption>Fig (6): The world of Tom, Marry, and Joe</figcaption>
 </figure>
 </div>
 </div>
@@ -13164,7 +13162,9 @@ What we examined is a knowledge graph, a set of nodes with different types of re
 <div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="What-is-the-task-of-Knowledge-Graph-Embedding?">What is the task of Knowledge Graph Embedding?<a class="anchor-link" href="#What-is-the-task-of-Knowledge-Graph-Embedding?">&#182;</a></h1><p>Knowledge graph embedding is the task of completing the knowledge graphs by probabilistically inferring the missing arcs from the existing graph structure. KGE differs from ordinary relation inference as the information in a knowledge graph are multi-relational and more complex to model and computationally expensive. For this rest of this blog, we examine fundamentals of KGE.</p>
+<p>Sadly major branches of deep learning do not have a good answer to this problem as deep learning models accept structures and mostly fixed size input data. The more structured the data, the more the models excel.</p>
+<p>Despair not, rejoice, all is not lost. Amidst the sound of lyre and roars of thunder, riding a donkey and wielding a proverbial hammer and anvil, enters the new Olympian to rescue, enters Deep Learning on Graphs.</p>
+<h1 id="Deep-Learning-on-Graphs">Deep Learning on Graphs<a class="anchor-link" href="#Deep-Learning-on-Graphs">&#182;</a></h1><p>The story of Mary, Joe, and Tom, provides us with the motivation as why we need to accommodate a less structured data to model the world around us, specially when it comes to capturing knowledge. There is an abundance of examples to justify Graph data structure to capture information. One of the first domains to explore graph neural networks were making predictions about molecules. Molecules are composed of atoms and bindings between those atoms. Different atoms have different properties like charge and mass. Atoms influence one another. Intra connections in a molecule and inter-molecular connectivity comes in various forms.</p>
 
 </div>
 </div>
@@ -13172,32 +13172,7 @@ What we examined is a knowledge graph, a set of nodes with different types of re
 <div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="Common-connectivity-patterns:">Common connectivity patterns:<a class="anchor-link" href="#Common-connectivity-patterns:">&#182;</a></h1><p>The connectivity or relational pattern are commonly observed in KG. A Knowledge Graph Embedding model intends to predicts missing connections that are often one of the below types.</p>
-<ul>
-<li><p><strong><em>symmetric</em></strong></p>
-<ul>
-<li><strong>Definision:</strong> A relation $r$ is <strong><em>symmetric</em></strong> if $\forall {x,y}: (x,r,y)\implies (y,r,x)$</li>
-<li><strong>Example:</strong> $\text{x=Mary and y=Tom and r="is a sibling of"}; (x,r,y) = \text{Mary is a sibling of Tom} \implies (y,r,x)=\text{Tom is a sibling of Mary}$ </li>
-</ul>
-</li>
-<li><p><strong><em>antisymmetric</em></strong></p>
-<ul>
-<li><strong>Definision:</strong> A relation r is <strong><em>antisymmetric</em></strong> if $\forall {x,y}: (x,r,y)\implies \lnot (y,r,x)$</li>
-<li><strong>Example:</strong> $\text{x=Quebec and y=Canada and r="is located in"}; (x,r,y) = \text{Quebec is located in Canada} \implies (y,\lnot r,x)=\text{Canada is not located in Quebec}$ </li>
-</ul>
-</li>
-<li><strong><em>inversion</em></strong><ul>
-<li><strong>Definition:</strong> A relation $r_1$ is <strong><em>inverse</em></strong> to relation $r_2$ if $\forall x,y: r_2(x,y)\implies r_1(y,x)$.</li>
-<li><strong>Example:</strong> $x=Mary,\ y=Tom,\ r_1=\text{"is a sister of}"\ and r_2=\text{"is a brother of"} \\ (x,r_1,y)=\text{Mary is a sister of Tom} \implies (y,r_2,x) = \text{Tom is a brother of Mary}$</li>
-</ul>
-</li>
-<li><strong><em>composition</em></strong><ul>
-<li><strong>Definition</strong>: relation $r_1$ is composed of relation $r_2$ and relation $r_3$ if $\forall x,y,z: (x,r_2,y) \land (y,r_3,z) \implies (x,r_1, z)$</li>
-<li><strong>Example:</strong> $\text{x=Tom, y=Quebec, z=Canada},\ r_2=\text{"is born in"}, r_3=\text{"is located in"}, r_1=\text{"is from"}\\(x,r_2,y)=\text{Tom is born in Quebec} \land (y,r_3,z) = \text{Quebec is located in Canada} \implies (x,r_1,z)=\text{Tom is from Canada}$</li>
-</ul>
-</li>
-</ul>
-<p><em>ref: RotateE[2]</em></p>
+<p>In the following sections we will explore GNN and its variants; but before proceeding with GNN, let us review some of the fundamentals of graph theory and the glossary that is required in order to sail smoothly though GNN literature.</p>
 
 </div>
 </div>
@@ -13205,473 +13180,23 @@ What we examined is a knowledge graph, a set of nodes with different types of re
 <div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="Score-Function">Score Function<a class="anchor-link" href="#Score-Function">&#182;</a></h1><p>There are different flavours of KGE that have been developed over the course of the past few years. What most of them have in common is a score function. The score function measures how distant two nodes in relations to a relation are. As we are setting the stage to introduce the reader to DGL-KE, an open source knowledge graph embedding library, we limit the scope only to those methods that are implemented by DGL-KE and are listed in figure 2.</p>
-<figure>
-    <img src=img/scorefunction.png height=200, width=300 align=top>
-    <figcaption>Figure2: A list of score functions for KE papers implemented by DGL-KE</figcaption>
-</figure>
-</div>
-</div>
-</div>
-<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
-</div><div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<h2 id="A-short-explanation-of-the-score-functions">A short explanation of the score functions<a class="anchor-link" href="#A-short-explanation-of-the-score-functions">&#182;</a></h2><p>Knowledge graphs that are beyond toy examples are always large, high dimensional, and sparse. High dimensionality and sparsity are the results of the amount of information that the KG holds that can be represented with 1-hot or n-hot vectors. The fact that most of the items have no relationship withe one another is another major contributor to sparsity of KG representations. We, therefore desire to project the sparse and high dimensional graph representational vector space onto a lower dimensional dense space. This process is similar to to word embedding and dimensionality reduction used for <a href="https://www.slideshare.net/apachemxnet/building-content-recommendation-systems-using-mxnet-gluon">recommender systems baesd on matrix factorization models.</a>
-I will provide a detailed account of all the methods in a different post, but here I will provide a short explanation of how projections differ in each paper, what the score functions do, and what consequences the choices have on on relationship inference and computational complexity.</p>
+<h2 id="What's-Next?">What's Next?<a class="anchor-link" href="#What's-Next?">&#182;</a></h2><p>Next we explore <a href="./03-MPNN.html">MPNN, Message Passing Neural Network, framework</a>, which is used foundation of Deep Graph Library fir graph embedding,</p>
 
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
-</div><div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="TransE:">TransE:<a class="anchor-link" href="#TransE:">&#182;</a></h1><p>TransE is a representative translational distance model that represents entities and relations as vectors in the same semantic space of dimension $\mathbb{R^d}$, where $d$ is the dimension of the target space with reduced dimension. A fact in the source space is represented as a triplet $(h, r, t)$ where $h$ is short for <em>head</em>, $r$ is for <em>relation</em>, and $t$ is for <em>tail</em>. The relationship is interpreted as a translation vector so that the embedded entities are connected by relation $r$ have a short distance. [3, 4]
-In terms of vector computation it could mean adding a head to a relation should approximate to the relation's tail, or $h+r \approx t$. For example if $h_1=emb("Ottawa"),\ h_2=emb("Berlin"), t_1=emb("Canada"), t_2=("Germany")$, and finally $r="CapilatOf"$, then $h_1 + r$ and $h_2+r$ should approximate $t_1$ and $t_2$ respectively.
-TransE performs linear transformation and the scoring function is negative distance between $h+r$ and $t$, or $f=-\|h+r-t\|_{\frac{1}{2}}$</p>
-<figure>
-    <img src=img/transe.png hight=200 width=200>
-    <figcaption>Figure 3: TransE</figcaption>
-</figure>
-</div>
-</div>
-</div>
-<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
-</div><div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="TransR">TransR<a class="anchor-link" href="#TransR">&#182;</a></h1><p>TransE cannot cover relationship that are not 1-to-1 as it learns only one aspect of similarity. TransR addresses this issue with separating relationship space from entity space where $h, t \in \mathbb{R}^k$ and $r \in \mathbb{R}^d$. The semantic spaces do not need to be of the same dimension. In the multi-relationship modeling we learn a projection matrix $M\in \mathbb{R}^{k \times d}$ for each relationship that can project an entity to different relationship semantic spaces. Each of these spaces capture a different aspect of an entity that is related to a distinct relationship. In this case a head node $h$ and a tail node $t$ in relation to relationship $r$ is projected into the relationship space using the learned projection matrix $M_r$ as $h_r=hM_r$ and $t_r=tM_r$ respectively.Figure 5 illustrates this projection.</p>
-<p>Let us explore this using an example. Mary and Tom are siblings and colleagues. They both are vegetarians. Joe also works for Amazon and is a colleague of Mary and Tom. TransE might end up learning very similar embedding for Mary, Tom, and Joe from the fact that they are colleagues but fail to recognize the (not)sibling relationship.
-Using TransR, we learn projection matrices: $M_{sib},\ M_{clg}$ and $M_{vgt}$ that perform better on learning relationship like (not)sibling. 
-The score function in TransR is similar to TransE and measures euclidean distance between $h+r$ and $t$, but the distance measure is per relationship space. More formally: $f_r=\|h_r+r-t_r\|_2^2$</p>
-<figure>
-    <img src=img/transr.png height=200, width=400>
-    <figcaption>Figure 4: TransR projecting different aspects of an entity to a relationship space.</figcaption>
-</figure><p>Another advantage of TransR over TransE is its ability to extract compositional rules. Ability to extract rules has two major benefits: 1) Richer information, and 2) smaller memory space as we can infer some of the rules from others.</p>
-<h4 id="Drawbacks">Drawbacks<a class="anchor-link" href="#Drawbacks">&#182;</a></h4><p>The benefits from more expressive projections in TransR adds to the complexity of the model as well as higher rate of moving data around which has an adverse effect on distributed training. TransE requires $O(d)$ parameters per relation, where $d$ is the dimension of semantic space in TransE which includes both entities and relationships. As TransR projects entities to a relationship space of dimension $k$, it will require $O(kd)$ parameters per relation. depending on the size of k, this could potentially increase the number of parameters drastically. In exploring DGL-KE, we will examine benefits of DGL-KE in making computation of knowledge embedding significantly more efficient.</p>
-<p>ref: TransR[5], 7</p>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span> 
+</pre></div>
 
+    </div>
 </div>
 </div>
-</div>
-<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
-</div><div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<p>TransE and its variantes such as TransR are generall called <em>translational distance models</em> as they translate the entities and relationships and measure distance in the the target semantic spaces. A second category of KE models is called <em>semantic matching</em> that includes models such as RESCAL, DistMulti, and ComplEx.These models make use of a similarity-based scoring function.
-The first of semantic matching models we explore is RESCAL.</p>
-<h1 id="RESCAL">RESCAL<a class="anchor-link" href="#RESCAL">&#182;</a></h1><p>RESCAL is a <strong>bilinear</strong> model that captures latent semantics of a knowledge graph through associate entities with vectors and represents each relation as a matrix that <strong>models pairwise interaction</strong> between entities.</p>
-<p>Multiple relations of any order can be represented as tensors. In fact $n-dimensional$ tensors are by definitions representation of multi-dimensional vector spaces. RESCAL, therefore, proposes to capture entities and relationships as multidimensional tensors as illustrated in figure 5.</p>
-<p>RESCAL uses semantic web's RDF formation where relationships are modeled as $(subject, predicate, object)$. Tensor $\mathcal{X}$ contains such relationships as $\mathcal{X}_{ijk}$ between $i$<sup>th</sup> and $j$<sup>th</sup> entities through $k$<sup>th</sup> relation.
-Value of $\mathcal{X}_{ijk}$ is determined as:
-$$
-\mathcal{X}_{ijk} =  
-     \begin{cases}
-       1\  &amp;\quad\text{if }(e_i, r_k, e_j)\text{ holds}\\
-       0\  &amp;\quad\text{if }(e_i, r_k, e_j)\text{ does not hold}
-     \end{cases}
-$$</p>
-<figure>
-    <img src=img/RESCAL1.png height=200 width=200>
-    <figcaption>Figure 5: RESCAL captures entities and their relations as multi-dimensional tensor</figcaption>
-</figure><p>As entity relationship tensors tends to be sparse, the authors of RESCAL, propose a dyadic decomposition to capture the inherent structure of the relations in the form of a latent vector representation of the entities and an asymmetric square matrix that captures the relationships. More formally each slice of $\mathcal{X}_k$ is decomposed as a rank$-r$ factorization:
-$$
-\mathcal{X}_k \approx AR_k\mathbf{A}^\top, \text{ for } k=1, \dots, m
-$$
-where A is an $n\times r$ matrix of latent-component representation of entities and asymmetrical $r\times r$ square matrix $R_k$ that models interaction for $k_th$ predicate component in $\mathcal{X}$.
-To make sense of it all, let's take a look at an example:</p>
-<p>$
-Entities=\{\text{Mary :}0, \text{Tom :}1, \text{Joe :}2\} \\
-Relationships=\{\text{sibling, colleague}\} \\
-Relation_{k=0}^{sibling}: \text{Mary and Tom are siblings but Joe is not their sibling.} \\
-Relations_{k=1}^{colleague}: \text{Mary,Tom, and Joe are colleagues}\\
-\text{relationship matrices will model: }\mathcal{X_k}=
-\begin{bmatrix}
-Mary &amp; Tom  &amp; Joe \\
-Tom  &amp; Joe &amp; Mary \\
-Joe  &amp; Mary  &amp; Tom
-\end{bmatrix}\\
-{\mathcal{X}}_{0:sibling}=
-\begin{bmatrix}
-0 &amp; 1 &amp; 0\\
-0 &amp; 0 &amp; 1\\
-0 &amp; 0 &amp; 0
-\end{bmatrix}\\
-\mathcal{X}_{1:colleague}=
-\begin{bmatrix}
-0 &amp; 1 &amp; 1\\
-1 &amp; 0 &amp; 1\\
-1 &amp; 1 &amp; 0
-\end{bmatrix}
-$</p>
-<p>Note that even in such a small knowledge graph where two of the three entities have even a symmetrical relationship, matrix $\mathcal{X}_k$ is sparse and asymmetrical. Obviously colleague relationship in this example is not representative of a real world problem. Even though such relationships can be created they contain no information as probability of occurring is hight. For instance if we are creating a knowledge graph for for registered members of a website is a specific country, we do not model relations like "is countryman of" as it contains little information and has very low entropy.</p>
-<p>Next step in RESCAL is decomposing matrices $\mathcal{X}_k$ using a rank_k decomposition as illustrated in figure 6.</p>
-<figure>
-    <img src=img/RESCAL2.png height=200 width=400>
-    <figcaption>Figure 6: Each of the $k$ slices of martix $\mathcal{X}$ is factorized to its k-rank components in form of a $n\times r$ entity-latent component and an asymmetric $r\times r$ that specifies interactions of entity-latent components per relation.</figcaption>
-</figure><p>$A$ and $R_k$ are computed through solving an optimization problem that is correlated to minimizing the distance between $\mathcal{X}_k$ and $AR_k\mathbf{A}^\top$.</p>
-<p>Now that the structural decomposition of entities and their relationships are modeled we need to create a score function that can predict existence of relationship for those entities we lack their mutual connection information.</p>
-<p>The score function $f_r(h,t)$ for $h,t\in \mathbb{R}^d$, where $h$ and $t$ are representation of <em>head</em> and <em>tail</em> entities, captures pairwise interactions between entities in $h$ and $t$ through relationship matrix $M_r$ that is the collection of all individual $R_k$ matrices and is of dimension $d\times d$.
-$$
-f_r(h, t) = \mathbf{h}^\top M_rt = \sum_{i=0}^{d-1}\sum_{j=0}^{d-1}[M_r]_{ij}.[h]_i.[t]_j
-$$
-Figure 7 illustrates computation of the the score for RESCAL method.</p>
-<figure>
-    <img src=img/RESCAL3.png height=200 width=400>
-    <figcaption>Figure 7: RESCAL</figcaption>
-</figure><p>Score function $f$ requires $O(d^2)$ parameters per relation.</p>
-<p>Ref: 6,7</p>
 
-</div>
-</div>
-</div>
-<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
-</div><div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="DistMult">DistMult<a class="anchor-link" href="#DistMult">&#182;</a></h1><p>If we want to speed up the computation of RESCAL and limit the relationships only to symmetric relations, then we can take advantage of the proposal put forth by DistMult[8], which simplifies RESCAL by restricting $M_r$ from a general asymmetric $r\times r$ matrix to a diagonal square matrix and reducing the number of parameters per relation to $O(d)$. DistMulti introduces vector embedding $r \in \mathcal{R}^d. $the score function for DistMult where $M_r=diag(r)$ is computed as:
-$$
-f_r(h,t) = \mathbf{h}^\top diag(r) t = \sum_{i=0}^{d-1}[r]_i.[h]_i.[t]_i
-$$
-Figure 8 illustrates how DistMulti computes the score by capturing the pairwise interaction only along the same dimensions of components of h and t.</p>
-<figure>
-    <img src=img/distmulti.png height=200 width=220>
-    <figcaption>Figure 8: DistMulti</figcaption>
-</figure><h4 id="A-basic-refresher-on-linear-algebra">A basic refresher on linear algebra<a class="anchor-link" href="#A-basic-refresher-on-linear-algebra">&#182;</a></h4><p>$
-if\ A=[a_{ij}]_{m\times n}=
-\begin{bmatrix}
-a_{11} &amp; a_{12} &amp; \dots  &amp; a_{1n} \\
-a_{21} &amp; a_{22} &amp; \dots  &amp; a_{2n} \\
-\vdots &amp; \vdots &amp; \ddots &amp; \dots  \\
-a_{m1} &amp; a_{m2} &amp; \dots  &amp; a_{mn} \\
-\end{bmatrix}_{m\times n} \text{ and } 
-B=[b_{ij}]_{n\times k}=
-\begin{bmatrix}
-b_{11} &amp; b_{12} &amp; \dots  &amp; b_{1k} \\
-b_{21} &amp; b_{22} &amp; \dots  &amp; b_{2k} \\
-\vdots &amp; \vdots &amp; \ddots &amp; \dots  \\
-b_{n1} &amp; b_{n2} &amp; \dots  &amp; b_{nk} \\
-\end{bmatrix}_{n\times k}\ then\
-C=[c_{mk}]_{m\times k}\ such\ that\  c_{mk}=\sum_{p=1}^{k}a_{mp}b_{pk}\, thus: \\
-C_{m\times k} = \begin{bmatrix}
-a_{11}b_{11} + \dots + a_{1n}b_{n1} &amp; a_{11}b_{12} + \dots + a_{1n}b_{n2} &amp; \dots  &amp; a_{11}b_{1k} + \dots + a_{1n}b_{nk} \\
-a_{21}b_{11} + \dots + a_{2n}b_{n1} &amp; a_{21}b_{12} + \dots + a_{2n}b_{n2} &amp; \dots  &amp; a_{21}b_{1k} + \dots + a_{2n}b_{nk} \\
-\vdots &amp; \vdots &amp; \ddots &amp; \dots  \\
-a_{m1}b_{11} + \dots + a_{mn}b_{n1} &amp; a_{m1}b_{12} + \dots + a_{mn}b_{n2} &amp; \dots  &amp; a_{m1}b_{1k} + \dots + a_{mn}b_{nk} \\
-\end{bmatrix}_{n\times k}
-$
-We know that a diagonal matrix is a matrix in which all non diagonal elements, $(i \neq j)$, are zero. This reduces complexity of matrix multiplication as for diagonal matrix multiplication for diagonal matrices $A_{m\times n}$ and $B_{n\times k}$, $C=AB= [c_{mk}]_{m\times k}$ where 
-$$c_{mk} = 
-\begin{cases}
-0&amp; \text{for }m \neq k \\
-a_mb_k&amp; \text{for }m = k
-\end{cases}
-$$</p>
-<p>This is basically multiplying to numbers $a_{ii}$ and $b_{ii}$ to get the value for the corresponding diagonal element on $C$.
-This complexity reduction is the reason that whenever possible we would like to reduce matrices to diagonal matrices.</p>
-
-</div>
-</div>
-</div>
-<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
-</div><div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="ComplEx">ComplEx<a class="anchor-link" href="#ComplEx">&#182;</a></h1><p>In order to model a KB effectively models need to be able to identify most common relationship patters as laid out earlier in this blog. relations can be reflexive/irreflexive, symmetric/antisymmetric, and transitive/intransitive. We have also seen two classes of semantic matching models, RESCAL and DistMulti. RESCAL is expressive but has an exponential complexity, whiled DistMulti has linear complexity but is limited to symmetric relations.
-An ideal model needs to keep linear complexity while being able to capture antisymmetric relations. Let us go back to what is good at DistMulti. It is using a rank-decomposition based on a diagonal matrix. We know that dot product of embedding scale well and handles symmetry, reflexity, and irreflexivity effectively. Matrix factorization methods have been very successful in recommender systems based on some variation of MF. MF works based on factorizing a relation matrix to dot product of lower dimensional matrices $\mathbf{U}\mathbf{V}^\top$ where $\mathbf{U}\mathbf{V} \in \mathbb{R}^{n\times K}$. The underlying assumption here is that the same entity would be taken to be different depending on whether it appears as a subject or an object in a relationship. For instance "Quebec" in "Quebec is located in Canada" and "Joe is from Quebec" appears as subject and object respectively. In many link prediction tasks the same entity can assume both roles as we perform graph embedding through adjacency matrix computation. Dealing with antisymmetric relationships, consequently, has resulted in an explosion of parameters and increased complexity and memory requirements.</p>
-<p>The goal ComplEx is set to achieve is perform embedding while reducing the number of required parameters, scale well, and capture antisymmetric relations. One essential strategy is to compute a joint representation for the entities regardless of their role as subject or object and perform dot product on those embeddings.</p>
-<p>Such embedding cannot be achieved in the real vector spaces, so ComplEx authors propose complex embedding.</p>
-<p>But first a quick reminder about complex vectors.</p>
-<h2 id="Complex-Vector-Space">Complex Vector Space<a class="anchor-link" href="#Complex-Vector-Space">&#182;</a></h2><p>As 1 is the unit for real numbers, $i=\sqrt{-1}$ is the <strong>imaginary unit</strong> of complex numbers. Each complex number has two parts, a real and an imaginary part as is represented as $c = a + bi \in \mathbb{C}$. As expected the complex plane has a horizontal and a vertical axis. The horizontal is the real and the vertical represents the imaginary part of a number in the same way that $x$ and $y$ are represented on Cartesian plane.
-An n-dimensional complex vector $\mathcal{V}\in \mathbb{C}^n$ is a vector whose elements $v_i\in \mathbb{C}$ are complex numbers.</p>
-<p>Example: 
-$
-V_1 = \begin{bmatrix}
-2 + 3i \\
-1 + 5i
-\end{bmatrix}
-\text{ and }  
-V_2 = \begin{bmatrix}
-2 + 3i \\
-1 + 5i \\
-3
-\end{bmatrix} 
-\text{ are in } \mathbb{C}^2\text{ and }\mathbb{C}^3\text{ respectively.}
-$</p>
-<p>$\mathbb{R} \subset \mathbb{C}$ and $\mathbb{R}^n \subset \mathbb{C}^n$. Basically a real number is a complex number whose imaginary part gas a coefficient of zero.</p>
-<p><strong>modulus of a complex number</strong>
-$z$ is a complex number as is given by $z=a+bi$, modulus $z$ is analogous to size in vector space and is given by $\mid z\mid = \sqrt{a^2 + b^2}$</p>
-<p><strong>Complex Conjugate</strong>
-The conjugate of complex number $z=a+bi$ is denoted by $\bar{z}$ and is given by $\bar{z}=a-bi$.</p>
-<p>Example: 
-$
-\bar{V}_1 = \begin{bmatrix}
-2 - 3i \\
-1 - 5i
-\end{bmatrix}
-\text{ and }  
-\bar{V}_2 = \begin{bmatrix}
-2 - 3i \\
-1 - 5i \\
-3
-\end{bmatrix} 
-\text{ are in } \mathbb{C}^2\text{ and }\mathbb{C}^3\text{ respectively.}
-$</p>
-<p><strong>Conjugate Transpose</strong>
-The conjugate transpose of a complex matrix $\mathcal{A}$, is denoted as $\mathcal{A}^*$ and is given by $\mathcal{A}^* = \mathbf{\bar{\mathcal{A}}}^\top$ where elements of $\bar{\mathcal{A}}$ are complex conjugates of $\mathcal{A}.$</p>
-<p>Example: 
-$
-V^*_1 = \begin{bmatrix}
-2 - 3i &amp;
-1 - 5i
-\end{bmatrix}
-\text{ and }  
-V^*_2 = \begin{bmatrix}
-2 - 3i &amp;
-1 - 5i &amp;
-3
-\end{bmatrix} 
-\text{ are in } \mathbb{C}^2\text{ and }\mathbb{C}^3\text{ respectively.}
-$</p>
-<p><strong>Complex dot product. aka Hermitian inner product</strong>
-if $\mathbf{u}$ and $\mathbf{c}$ are complex vectors, then their inner product is defined as $\langle \mathbf{u}, \mathbf{v} \rangle = \mathbf{u}^*\mathbf{v}$.</p>
-<p>Example:
-$
-u = \begin{bmatrix}
-2 + 3i \\
-1 + 5i
-\end{bmatrix}
-\text{ and }  
-v = \begin{bmatrix}
-1 + i \\
-2 + 2i
-\end{bmatrix}
-\text{ are in } \mathbb{C}^2\text{ and }\mathbb{C}^3\text{ respectively.}
-\text{ then }u^*= \begin{bmatrix}
-2 - 3i &amp;
-1 - 5i
-\end{bmatrix}
-\text{ and }
-\langle u,v \rangle = u^*v = \begin{bmatrix}
-2 - 3i &amp;
-1 - 5i
-\end{bmatrix}
-\begin{bmatrix}
-1 + i \\
-2 + 2i
-\end{bmatrix}
-= (2-3i)(1+i)+(1-5i)(2+2i)=[4-13i]
-$</p>
-<p><strong>Definition:</strong> A complex matrix $A$ us <strong>unitary</strong> when $A^{-1} = A^*$</p>
-<p>Example: $A = \frac{1}{2}\begin{bmatrix}1+i &amp; 1-i \\1-i &amp; 1+i\end{bmatrix}$</p>
-<p><strong>Theorm:</strong> An $n \times n$ complex matrix $A$ is unitary $\iff$ its rows or columns form an orthanormal set in $\mathcal{C}^n$</p>
-<p><strong>Definition:</strong> A square matrix $A$ is <strong>Hermitian</strong> when $A=A^*$</p>
-<p>Example:$A = \begin{bmatrix}a_1 &amp; b_1+b_2i \\b_1+b_2i &amp; d+1\end{bmatrix}$</p>
-<p><strong>Theorm:</strong> Matrix $A$ is Hermitian $\iff$:</p>
-<ol>
-<li>$a_{ii} \in \mathbb{R}$ </li>
-<li>$a_{ij} is complex conjugate of a_{ji}$</li>
-</ol>
-<p><strong>Theorm:</strong> If $A$ is a Hermirian matrix, then its eigenvalues are real numbers.</p>
-<p><strong>Theorm:</strong> Hermitian matrices are <strong>unitarity diagonizable</strong>.</p>
-<p><strong>Definitions:</strong> A squared matrix A is unitarily diagonizable when there exists a unitary matrix $P$ such that $P^{-1}AP$.</p>
-<p>Diagonizability can be extended to a larger class of matrices, called normal matrices.</p>
-<p><strong>Definition</strong>: A square complex matrix A is called <strong>normal</strong> when it commutes with its conjugate transpose. $AA^*=A^*A$.</p>
-<p><strong>Theorm</strong>: A complex matrix $A$ is <strong>normal</strong> $\iff A$ is <strong>diagonizable</strong>.</p>
-<p>This theorm plays a crucial role in ComplEx paper.</p>
-<p>ref: <a href="https://www.cengage.com/resource_uploads/downloads/1133110878_339554.pdf">https://www.cengage.com/resource_uploads/downloads/1133110878_339554.pdf</a></p>
-<h2 id="Eigen-decomposition-for-entity-embedding">Eigen decomposition for entity embedding<a class="anchor-link" href="#Eigen-decomposition-for-entity-embedding">&#182;</a></h2><p>The matrix decomposition methods have a long history in machine learning are used. Using embedding based decomposition in the form of $X=EWE^{-1}$ for square symmetric matrices can be represented as eigen decomposition $X=Q\Lambda Q^{-1}$ where $Q$ is orthogonal ($\models Q^{-1} = Q^\top$) and $\Lambda = diag(\lambda)$ and $\lambda_i$ is an eigenvector of $X$.</p>
-<p>As ComplEx targets to learn antisymmetric relations, and eigen decomposition for asymmetric matrices does not exist in real space, the authors extend the embedding representation to complex numbers, where they can factorize complex matrices and benefit from efficient scaling and distribution of matrix multiplication while being able to capture antisymmetric relations. This asymmetry is resulted from the fact that dot product of complex matrices involves conjugate transpose.</p>
-<p>We are not done yet. Do you remember in RESCAL the number of parameters was $O(d^2)$ and DistMulti reduce that to a linear relation of $O(d)$ by limiting matrix $M_r$ to be diagonal?. Here even with complex eigenvectors $E \in \mathcal{C}^{n \times n}$, inversion of $E$ in $X=EWE^{*}$ explodes the number of parameters. As a result we need to find a solutions in which W is a diagonal matrix, and $E = E^*$, and $X$ is asymmetric, so that we 1) computation is minimized, 2) there is no need to compute inverse of $E$, and 3) antisymmetric relations can be captures.
-We have already seen the solution in the complex vector space section. The paper does construct the decomposition in a normal space, a vector space composed of complex normal vectors.</p>
-<h2 id="The-Score-Function">The Score Function<a class="anchor-link" href="#The-Score-Function">&#182;</a></h2><p>A relation between two entities can be modeled as a sign function, meaning that if there is a relation between subject and object, then the outcome is 1, otherwise it is 0. More formally, $Y_{so}\in \{-1, 1\}$. the probability of of a relation to exist then is given by sigmoid function: $P(Y_{so}=1) = \sigma(X_{so})$.</p>
-<p>This probability score requires $X$ to be real, while $EWE^*$ includes both real and imaginary components. We can simply project the decomposition to the real space so that $X =Re(EWE^*)$. the score function of ComlEx, therefore is given by:
-$$
-f_r(h, t) = Re(h^\top diag(r) \bar{t}) = Re(\sum_{i=0}^{d-1}[r]_i.[h]_i.[\bar{t}]_i)
-$$
-and since there are no nested loops, the number of parameters is linear and is given by $O(d)$.</p>
-
-</div>
-</div>
-</div>
-<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
-</div><div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="RotateE">RotateE<a class="anchor-link" href="#RotateE">&#182;</a></h1><p>Let us reexamine translational distance models with on of the latest publications in relational embedding models, RotateE. Inspired by TransE, RotateE veers into complex vector space and motivated by Euler's identity, defines relations as rotation from head to tail.</p>
-<h2 id="Euler's-Formula">Euler's Formula<a class="anchor-link" href="#Euler's-Formula">&#182;</a></h2><p>$e^x$ can be computed using the infinite series below:
-$$
-e^x = 1 + \frac{x}{1!} +\frac{x^2}{2!} + \frac{x^3}{3!} + \frac{x^4}{4!}+ \frac{x^5}{5!} + \frac{x^6}{6!} + \frac{x^7}{7!} + \frac{x^8}{8!} + \dots
-$$
-replacing $x$ with $ix$ entails:</p>
-$$
-e^{(ix)} = 1 + \frac{ix}{1!} - \frac{x^2}{2!} - \frac{ix^3}{3!} + \frac{x^2}{4!} + \frac{ix^5}{5!} - \frac{x^6}{6!} - \frac{ix^7}{3!} + \frac{x^8}{8!} + \dots\\
-$$<p>Computing $i$ to a sequence of powers and replacing the values in $e^{ix} $ the the results in: 
-$$
-i^2=-1,\ i^3=i^2i=-i,\ i^4=ii^3=-1^2=1,\ i^5=i^4i=i,\ i^6=i^5i=i^2=-1,\ i^7=i^6i=-i,\ i^8=i^7i=-i^2=1,\ \dots\\
-e^{(ix)} = 1 + \frac{ix}{1!} +\frac{i^2x^2}{2!} + \frac{i^3x^3}{3!} + \frac{i^4x^4}{4!} + \frac{i^5x^5}{5!} + \frac{i^6x^6}{6!} + \frac{i^7x^7}{3!} + \frac{i^8x^8}{8!} + \dots\\
-$$</p>
-<p>rearranging the series and factoring $i$ in terms that include it:</p>
-$$
-1 - \frac{x^2}{2!} + \frac{x^4}{4!} - \frac{x^6}{6!} + \frac{x^8}{8!} +i\left(\frac{x}{1!} - \frac{x^3}{3!} + \frac{x^5}{5!} -  \frac{x^7}{7!}  \right)\text{ (1)}\\
-$$<p>$sin$ and $cosin$ representation as series are given by:
-$$
-sin(x) = \frac{x}{1!} - \frac{x^3}{3!} + \frac{x^5}{5!} -  \frac{x^7}{7!} + \dots\\
-cos(x) = 1 - \frac{x^2}{2!} + \frac{x^4}{4!} - \frac{x^6}{6!} + \frac{x^8}{8!} + \dots\\
-$$</p>
-<p>Finally replacing terms in equation (1) with $sin$ and $cosin$, we have:
-$$
-\large e^{i\theta} = cos(\theta) + isin(\theta)\ (2)
-$$</p>
-<p>Equation 2 is called Euler's formula and has interesting consequences in a way that we can represent complex numbers as rotation on the unit circle.</p>
-<h2 id="Modeling-Relations-as-Rotation">Modeling Relations as Rotation<a class="anchor-link" href="#Modeling-Relations-as-Rotation">&#182;</a></h2><p>Given a triplet $(h,r,t), t = h \circ r$, where $h$, $r$, and $t \in \mathbb{C}^k$ are the embeddings. modulus $\mid r_i\mid=1$(as we are in the unit circle thanks to Euler's formula), and $\circ$ is the element-wise product. We, therefore, for each dimension expect to have: 
-$$
-t_i=h_ir_i,\text{ where } h_i, r_i, t_i \in \mathbb{C}, and \mid r_i\mid=1.
-$$
-Restricting $\mid r_i\mid = 1\ r_i$ will be of form $e^{i\theta_{r,i}}$. Intuitively $r_i$ corresponds to a counterclockwise rotation by $\theta_{r,i}$ based on Eurler's formula.</p>
-<p>Under these conditions,:</p>
-<ul>
-<li>$r$ is symmetric $\iff \forall i \in (0,k]: r_i=e^{\frac{0}{i\pi}}=\pm 1$.</li>
-<li>$r_1$ and $r_2$ are inverse $\iff r_2=\bar{r}_1$ (embeddings of relations are complex conjugates)</li>
-<li>$r_3=e^{i\theta_3}$ is a combination of $r_1=e^{i\theta_1}$ and $r_2=e^{i\theta_2} \iff r_3=r_1\circ r_2.\text(i.e)\theta_3=\theta1+\theta2$ or a rotation is a combination of two smaller rotations sum of whose angles is the angle of the third relation. <figure>
-  <img src=img/rotate1.png height=200 width=600>
-  <figcaption>Figure 9: RotateE vs. TransE</figcaption>
-</figure></li>
-</ul>
-<h2 id="Score-Function">Score Function<a class="anchor-link" href="#Score-Function">&#182;</a></h2><p>score function of RotateE measures the angular distance between head and tail elements and is defined as: 
-$$
-d_r(h, t)=\|h\circ r-t\|
-$$</p>
-
-</div>
-</div>
-</div>
-<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
-</div><div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="Training-KE">Training KE<a class="anchor-link" href="#Training-KE">&#182;</a></h1><h2 id="Negative-Sampling">Negative Sampling<a class="anchor-link" href="#Negative-Sampling">&#182;</a></h2><p>Generally to train a KE, all the models we have investigated apply a variation of negative sampling by corrupting triplets $(h,r,t)$. They corrupt either $h$, or $t$ by by sampling from set of head or tail entities for heads and tails respectively. The corrupted triples can be of wither forms $(h', r, r)$ or $(h, r, t')$, where $h'$ and $t'$ are the negative samples.</p>
-<h2 id="Loss-functions">Loss functions<a class="anchor-link" href="#Loss-functions">&#182;</a></h2><p>Most commonly logistic loss and pairwise ranking loss are employed. The logistic loss returns -1 for negative samples and +1 for the positive samples. So if $\mathbb{D}^+$ and $\mathbb{D}^-$ are negative and positive data, $y=\pm 1$ is the label for positive and negative triplets and $f$(figure 2) is the ranking function, then the logistic loss is computed as:</p>
-$$
-minimize\ \sum_{(h,r,t)\in \mathbb{D}^+\cup \mathbb{D}^-}log(1+e^{-y\times f(h,r,t)})
-$$<p>The second commonly use loss function is margin based pairwise ranking loss, which minimizes the rank for positive triplets($(h,r,t)$ does hold). The lower the rank, the higher the probability. Ranking loss is give by:
-$$
-minimize \sum_{(h,r,t)\in \mathbb{D}^+}\sum_{(h,r,t)\in \mathbb{D}^-}max(0, \gamma - f(h,r,t)+f(h',r', t')).
-$$</p>
-
-</div>
-</div>
-</div>
-<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
-</div><div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<table>
-<thead><tr>
-<th>Method</th>
-<th>Ent. Embedding</th>
-<th>Rel. Emebedding</th>
-<th>Score Function</th>
-<th>Complexity</th>
-<th>symm</th>
-<th>Anti</th>
-<th>Inv</th>
-<th>Comp</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>TransE</td>
-<td>$h,t \in \mathbb{R}^d$</td>
-<td>$r \in \mathbb{R}^d$</td>
-<td>$-|h+r-t|$</td>
-<td>$O(d)$</td>
-<td>$-$</td>
-<td>$\checkmark$</td>
-<td>$\checkmark$</td>
-<td>$-$</td>
-</tr>
-<tr>
-<td>TransR</td>
-<td>$h,t \in \mathbb{R}^d$</td>
-<td>$r \in \mathbb{R}^k,M_r\in\mathbb{R}^{k\times d}$</td>
-<td>$-|M_rh+r-M_rt|_2^2$</td>
-<td>$O(d^2)$</td>
-<td>$-$</td>
-<td>$\checkmark$</td>
-<td>$\checkmark$</td>
-<td>$\checkmark$</td>
-</tr>
-<tr>
-<td>RESCAL</td>
-<td>$h,t \in \mathbb{R}^d$</td>
-<td>$M_r\in\mathbb{R}^{d\times d}$</td>
-<td>$h^\top M_rt$</td>
-<td>$O(d^2)$</td>
-<td>$\checkmark$</td>
-<td>$-$</td>
-<td>$\checkmark$</td>
-<td>$\checkmark$</td>
-</tr>
-<tr>
-<td>DistMulti</td>
-<td>$h,t \in \mathbb{R}^d$</td>
-<td>$r\in\mathbb{R}^d$</td>
-<td>$h^\top diag(r)t$</td>
-<td>$O(d)$</td>
-<td>$\checkmark$</td>
-<td>$-$</td>
-<td>$-$</td>
-<td>$-$</td>
-</tr>
-<tr>
-<td>ComplEx</td>
-<td>$h,t \in \mathbb{C}^d$</td>
-<td>$r\in\mathbb{C}^d$</td>
-<td>$h^\top Re(diag(r)t)$</td>
-<td>$O(d)$</td>
-<td>$\checkmark$</td>
-<td>$\checkmark$</td>
-<td>$\checkmark$</td>
-<td>$-$</td>
-</tr>
-<tr>
-<td>RotateE</td>
-<td>$h,t \in \mathbb{C}^d$</td>
-<td>$r\in\mathbb{C}^d$</td>
-<td>$|h\circ r-t|$</td>
-<td>$O(d)$</td>
-<td>$\checkmark$</td>
-<td>$\checkmark$</td>
-<td>$\checkmark$</td>
-<td>$\checkmark$</td>
-</tr>
-</tbody>
-</table>
-
-</div>
-</div>
-</div>
-<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
-</div><div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="What's-Next?">What's Next?<a class="anchor-link" href="#What's-Next?">&#182;</a></h1><p>Now that we have investigated the methods that are implemented in DGL-KE, we shall explore how DGL-KE optimized computation of these methods and distributes them on multiple devices in a new post.</p>
-
-</div>
-</div>
-</div>
-<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
-</div><div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="References">References<a class="anchor-link" href="#References">&#182;</a></h1><ol>
-<li><a href="http://semantic-web-journal.net/system/files/swj1167.pdf">http://semantic-web-journal.net/system/files/swj1167.pdf</a></li>
-<li>Zhiqing Sun, Zhi-Hong Deng, Jian-Yun Nie, and Jian Tang. RotatE: Knowledge graph embedding by relational rotation in complex space. CoRR, abs/1902.10197, 2019.</li>
-<li>Knowledge Graph Embedding: A Survey of Approaches and Applications Quan Wang, Zhendong Mao, Bin Wang, and Li Guo. DOI 10.1109/TKDE.2017.2754499, IEEE Transactions on Knowledge and Data Engineering</li>
-<li>transE: Antoine Bordes, Nicolas Usunier, Alberto Garcia-Duran, JasonWeston, and Oksana
-Yakhnenko. Translating embeddings for modeling multi-relational data. In Advances in Neural Information Processing Systems 26. 2013.
-5.TransR: Yankai Lin, Zhiyuan Liu, Maosong Sun, Yang Liu, and Xuan Zhu. Learning entity and relation embeddings for knowledge graph completion. In Proceedings of the Twenty-Ninth AAAI Conference on Artificial Intelligence, 2015.</li>
-<li>RESCAL: Maximilian Nickel, Volker Tresp, and Hans-Peter Kriegel. A three-way model for collective learning on multi-relational data. In Proceedings of the 28th International Conference on International Conference on Machine Learning, ICML’11, 2011.</li>
-<li>Survey paper: Q. Wang, Z. Mao, B. Wang and L. Guo, "Knowledge Graph Embedding: A Survey of Approaches and Applications," in IEEE Transactions on Knowledge and Data Engineering, vol. 29, no. 12, pp. 2724-2743, 1 Dec. 2017.</li>
-<li>DistMult: Bishan Yang, Scott Wen-tau Yih, Xiaodong He, Jianfeng Gao, and Li Deng. Embedding entities and relations for learning and inference in knowledge bases. In Proceedings of the International Conference on Learning Representations (ICLR)
-2015, May 2015.</li>
-<li>ComplEx: Théo Trouillon, Johannes Welbl, Sebastian Riedel, Éric Gaussier, and Guillaume Bouchard. Complex embeddings for simple link prediction. CoRR, abs/1606.06357, 2016.</li>
-<li>Zhiqing Sun, Zhi-Hong Deng, Jian-Yun Nie, and Jian Tang. RotatE: Knowledge graph embedding by relational rotation in complex space. CoRR, abs/1902.10197, 2019.</li>
-</ol>
-
-</div>
-</div>
 </div>
     </div>
   </div>
